@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Color Merge Game</title>
+    <style>
+        body {
+            margin: 0;
+            background: #222;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: white;
+            margin-top: 20px;
+        }
+        #score {
+            color: white;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+        #game {
+            display: grid;
+            grid-template-columns: repeat(4, 100px);
+            grid-gap: 5px;
+            margin-bottom: 20px;
+        }
+        .tile {
+            width: 100px;
+            height: 100px;
+            border-radius: 10px;
+            background: #333;
+            transition: 0.2s;
+        }
+    </style>
+</head>
+<body>
+<h1>Color Merge</h1>
+<div id="score">Score: 0</div>
+<div id="game"></div>
+
+<script>
+    const gridSize = 4;
+    const gameContainer = document.getElementById('game');
+    const scoreDisplay = document.getElementById('score');
+    const colors = [
+        'red', 'green', 'blue',
+        'yellow', 'magenta', 'cyan'
+    ];
+    let board = [];
+    let score = 0;
+
+    function createBoard() {
+        board = [];
+        for (let y = 0; y < gridSize; y++) {
+            const row = [];
+            for (let x = 0; x < gridSize; x++) {
+                row.push(randomColor());
+            }
+            board.push(row);
+        }
+    }
+
+    function randomColor() {
+        return colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    function drawBoard() {
+        gameContainer.innerHTML = '';
+        for (let y = 0; y < gridSize; y++) {
+            for (let x = 0; x < gridSize; x++) {
+                const tile = document.createElement('div');
+                tile.classList.add('tile');
+                const color = board[y][x];
+                if (color) tile.style.background = color;
+                gameContainer.appendChild(tile);
+            }
+        }
+        scoreDisplay.textContent = `Score: ${score}`;
+    }
+
+    function rotate(board, clockwise = true) {
+        const newBoard = Array.from({ length: gridSize }, () => Array(gridSize).fill(null));
+        for (let y = 0; y < gridSize; y++) {
+            for (let x = 0; x < gridSize; x++) {
+                if (clockwise) {
+                    newBoard[x][gridSize - y - 1] = board[y][x];
+                } else {
+                    newBoard[gridSize - x - 1][y] = board[y][x];
+                }
+            }
+        }
+        return newBoard;
+    }
+
+    function slideAndMerge(row) {
+        const filtered = row.filter(Boolean);
+        for (let i = 0; i < filtered.length - 1; i++) {
+            if (filtered[i] === filtered[i + 1]) {
+                filtered[i] = null;
+                filtered[i + 1] = null;
+                score += 1;
+                i++;
+            }
+        }
+        const compacted = filtered.filter(Boolean);
+        while (compacted.length < gridSize) {
+            compacted.push(null);
+        }
+        return compacted;
+    }
+
+    function move(dir) {
+        let rotated = board;
+        if (dir === 'up') rotated = rotate(board, false);
+        if (dir === 'down') rotated = rotate(board, true);
+        if (dir === 'right') rotated = rotated.map(row => row.reverse());
+
+        let changed = false;
+        for (let y = 0; y < gridSize; y++) {
+            const newRow = slideAndMerge(rotated[y]);
+            if (JSON.stringify(newRow) !== JSON.stringify(rotated[y])) {
+                rotated[y] = newRow;
+                changed = true;
+            }
+        }
+
+        if (dir === 'right') rotated = rotated.map(row => row.reverse());
+        if (dir === 'up') rotated = rotate(rotated, true);
+        if (dir === 'down') rotated = rotate(rotated, false);
+
+        if (changed) {
+            board = rotated;
+            spawnNewTiles();
+            drawBoard();
+        }
+    }
+
+    function spawnNewTiles() {
+        const empty = [];
+        for (let y = 0; y < gridSize; y++) {
+            for (let x = 0; x < gridSize; x++) {
+                if (!board[y][x]) empty.push([y, x]);
+            }
+        }
+        for (let i = 0; i < Math.min(2, empty.length); i++) {
+            const [y, x] = empty.splice(Math.floor(Math.random() * empty.length), 1)[0];
+            board[y][x] = randomColor();
+        }
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowUp') move('up');
+        if (e.key === 'ArrowDown') move('down');
+        if (e.key === 'ArrowLeft') move('left');
+        if (e.key === 'ArrowRight') move('right');
+    });
+
+    createBoard();
+    drawBoard();
+</script>
+</body>
+</html>
