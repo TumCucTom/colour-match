@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Colour Merge Game</title>
+    <title>Color Merge Game</title>
     <style>
         body {
             margin: 0;
@@ -23,120 +23,136 @@
             margin-bottom: 10px;
         }
         #game {
+            width: 420px;
+            height: 420px;
             display: grid;
-            grid-template-columns: repeat(4, 100px);
-            grid-gap: 5px;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(4, 1fr);
+            gap: 5px;
+            position: relative;
         }
         .tile {
-            width: 100px;
-            height: 100px;
+            width: 100%;
+            height: 100%;
             border-radius: 10px;
             background: #333;
-            transition: 0.2s;
+            transform: scale(1);
+            transition: transform 0.2s ease, background 0.2s ease;
+            opacity: 1;
+        }
+        .tile.new {
+            animation: appear 0.3s ease;
+        }
+        @keyframes appear {
+            from {
+                transform: scale(0.3);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
     </style>
 </head>
 <body>
-<h1>Colour Merge</h1>
+<h1>Color Merge</h1>
 <div id="score">Score: 0</div>
 <div id="game"></div>
 
 <script>
     const gridSize = 4;
-    const gameContainer = document.getElementById('game');
+    const colors = ['red', 'green', 'blue', 'yellow', 'magenta', 'cyan'];
+    const game = document.getElementById('game');
     const scoreDisplay = document.getElementById('score');
-    const colors = [
-        'red', 'green', 'blue',
-        'yellow', 'magenta', 'cyan'
-    ];
     let board = [];
     let score = 0;
-
-    function createBoard() {
-        board = [];
-        for (let y = 0; y < gridSize; y++) {
-            const row = [];
-            for (let x = 0; x < gridSize; x++) {
-                row.push(randomColor());
-            }
-            board.push(row);
-        }
-    }
 
     function randomColor() {
         return colors[Math.floor(Math.random() * colors.length)];
     }
 
-    function drawBoard() {
-        gameContainer.innerHTML = '';
+    function createBoard() {
+        board = Array.from({ length: gridSize }, () =>
+            Array.from({ length: gridSize }, () => randomColor())
+        );
+    }
+
+    function drawBoard(newTiles = []) {
+        game.innerHTML = '';
         for (let y = 0; y < gridSize; y++) {
             for (let x = 0; x < gridSize; x++) {
+                const color = board[y][x];
                 const tile = document.createElement('div');
                 tile.classList.add('tile');
-                const color = board[y][x];
-                if (color) tile.style.background = color;
-                gameContainer.appendChild(tile);
+                tile.style.background = color;
+                if (newTiles.some(([ny, nx]) => ny === y && nx === x)) {
+                    tile.classList.add('new');
+                }
+                game.appendChild(tile);
             }
         }
         scoreDisplay.textContent = `Score: ${score}`;
     }
 
-    function rotate(board, clockwise = true) {
-        const newBoard = Array.from({ length: gridSize }, () => Array(gridSize).fill(null));
+    function rotate(mat, clockwise = true) {
+        const newMat = Array.from({ length: gridSize }, () =>
+            Array(gridSize).fill(null)
+        );
         for (let y = 0; y < gridSize; y++) {
             for (let x = 0; x < gridSize; x++) {
                 if (clockwise) {
-                    newBoard[x][gridSize - y - 1] = board[y][x];
+                    newMat[x][gridSize - y - 1] = mat[y][x];
                 } else {
-                    newBoard[gridSize - x - 1][y] = board[y][x];
+                    newMat[gridSize - x - 1][y] = mat[y][x];
                 }
             }
         }
-        return newBoard;
+        return newMat;
     }
 
     function slideAndMerge(row) {
         const filtered = row.filter(Boolean);
-        for (let i = 0; i < filtered.length - 1; i++) {
+        let newRow = [];
+        for (let i = 0; i < filtered.length; i++) {
             if (filtered[i] === filtered[i + 1]) {
-                filtered[i] = null;
-                filtered[i + 1] = null;
-                score += 1;
+                score++;
+                newRow.push(null); // merged disappears
                 i++;
+            } else {
+                newRow.push(filtered[i]);
             }
         }
-        const compacted = filtered.filter(Boolean);
-        while (compacted.length < gridSize) {
-            compacted.push(null);
-        }
-        return compacted;
+        while (newRow.length < gridSize) newRow.push(null);
+        return newRow;
     }
 
-    function move(dir) {
+    function move(direction) {
         let rotated = board;
-        if (dir === 'up') rotated = rotate(board, false);
-        if (dir === 'down') rotated = rotate(board, true);
-        if (dir === 'right') rotated = rotated.map(row => row.reverse());
+        if (direction === 'up') rotated = rotate(board, false);
+        if (direction === 'down') rotated = rotate(board, true);
+        if (direction === 'right') rotated = rotated.map(row => row.slice().reverse());
 
         let changed = false;
+        const newBoard = [];
         for (let y = 0; y < gridSize; y++) {
             const newRow = slideAndMerge(rotated[y]);
             if (JSON.stringify(newRow) !== JSON.stringify(rotated[y])) {
-                rotated[y] = newRow;
                 changed = true;
             }
+            newBoard.push(newRow);
         }
 
-        if (dir === 'right') rotated = rotated.map(row => row.reverse());
-        if (dir === 'up') rotated = rotate(rotated, true);
-        if (dir === 'down') rotated = rotate(rotated, false);
+        if (!changed) return;
 
-        if (changed) {
-            board = rotated;
-            spawnNewTiles();
-            drawBoard();
-        }
+        let result = newBoard;
+        if (direction === 'right') result = result.map(row => row.slice().reverse());
+        if (direction === 'up') result = rotate(result, true);
+        if (direction === 'down') result = rotate(result, false);
+
+        board = result;
+        const newTiles = spawnNewTiles();
+        drawBoard(newTiles);
     }
 
     function spawnNewTiles() {
@@ -146,17 +162,50 @@
                 if (!board[y][x]) empty.push([y, x]);
             }
         }
-        for (let i = 0; i < Math.min(2, empty.length); i++) {
+        const count = Math.min(2, empty.length);
+        const newCoords = [];
+        for (let i = 0; i < count; i++) {
             const [y, x] = empty.splice(Math.floor(Math.random() * empty.length), 1)[0];
             board[y][x] = randomColor();
+            newCoords.push([y, x]);
         }
+        return newCoords;
     }
 
+    // Keyboard Controls
     document.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowUp') move('up');
         if (e.key === 'ArrowDown') move('down');
         if (e.key === 'ArrowLeft') move('left');
         if (e.key === 'ArrowRight') move('right');
+    });
+
+    // Touch Controls
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    document.addEventListener('touchstart', (e) => {
+        const touch = e.touches[0];
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+    });
+
+    document.addEventListener('touchend', (e) => {
+        const touch = e.changedTouches[0];
+        const dx = touch.clientX - touchStartX;
+        const dy = touch.clientY - touchStartY;
+        const absX = Math.abs(dx);
+        const absY = Math.abs(dy);
+
+        if (Math.max(absX, absY) > 30) {
+            if (absX > absY) {
+                if (dx > 0) move('right');
+                else move('left');
+            } else {
+                if (dy > 0) move('down');
+                else move('up');
+            }
+        }
     });
 
     createBoard();
